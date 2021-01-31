@@ -1,23 +1,14 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import boto3
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 def cloudwatch():
     # Create CloudWatch client
     client = boto3.client('cloudwatch')
-
-    metrics = client.list_metrics()
     dashboard = client.get_dashboard(DashboardName='default')
-
-    # print(dashboard)
-
-    # print(json.dumps(metrics, indent=4))
-    print(json.dumps(dashboard, indent=4))
+    print(dashboard.get("DashboardBody"))
 
 
 def instances(*args, **kwargs):
@@ -27,24 +18,30 @@ def instances(*args, **kwargs):
     print(response)
 
 
-def statistics():
-    cw = boto3.resource('cloudwatch')
-    metric = cw.Metric('InstanceId', 'i-0800789997f8de147')
-
-    response = metric.get_statistics(
-        # Dimensions=[
-        #     {
-        #         'Name': 'InstanceId',
-        #         'Value': 'i-0800789997f8de147'
-        #     },
-        # ],
-        StartTime=datetime(2020, 1, 1),
-        EndTime=datetime(2021, 1, 26),
-        Period=6000,
-        # Statistics=['Average'],
-        ExtendedStatistics=['p10'],
-        # Unit='Percent'
+def ec2_statistics(namespace, metric_name, dimension_name, dimension_value):
+    client = boto3.client('cloudwatch', region_name='us-east-1')
+    response = client.get_metric_statistics(
+        Namespace=namespace,
+        MetricName=metric_name,
+        Dimensions=[
+            {
+                'Name': dimension_name,
+                'Value': dimension_value
+            },
+        ],
+        StartTime=datetime.utcnow() - timedelta(hours=1),
+        EndTime=datetime.utcnow(),
+        Period=60,
+        Statistics=['Average'],
+        Unit='Percent'
     )
+
+    print(response)
+
+    data_points = response.get("Datapoints")
+
+    for data_point in data_points:
+        data_point.update({"Timestamp": data_point.get("Timestamp").strftime("%Y-%m-%d %H:%M:%S")})
 
     print(json.dumps(response, indent=4))
 
@@ -59,5 +56,6 @@ def stuff():
 if __name__ == '__main__':
     # instances()
     # cloudwatch()
-    # statistics()
-    stuff()
+    ec2_statistics("AWS/EC2", "CPUUtilization", "InstanceId", "i-0684c0a722655dd39")
+    ec2_statistics("AWS/EC2", "NetworkPacketsOut", "InstanceId", "i-0684c0a722655dd39")
+    # stuff()
